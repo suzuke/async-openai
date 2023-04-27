@@ -21,7 +21,7 @@ pub struct Client {
     http_client: reqwest::Client,
     api_key: String,
     api_base: String,
-    org_id: String,
+    org_id: Option<String>,
     backoff: backoff::ExponentialBackoff,
 }
 
@@ -65,7 +65,7 @@ impl Client {
 
     /// To use a different organization id other than default
     pub fn with_org_id<S: Into<String>>(mut self, org_id: S) -> Self {
-        self.org_id = org_id.into();
+        self.org_id = Some(org_id.into());
         self
     }
 
@@ -148,9 +148,15 @@ impl Client {
 
     fn headers(&self) -> HeaderMap {
         let mut headers = HeaderMap::new();
-        if !self.org_id.is_empty() {
-            headers.insert(ORGANIZATION_HEADER, self.org_id.as_str().parse().unwrap());
-        }
+        headers.insert(
+            ORGANIZATION_HEADER,
+            match &self.org_id {
+                Some(org_id) => org_id.as_str().parse().unwrap(),
+                None => {
+                    "".parse().unwrap()
+                }
+            },
+        );
         headers
     }
 
