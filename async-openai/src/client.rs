@@ -26,7 +26,7 @@ pub struct Client {
 }
 
 /// Default v1 API base url
-pub const API_BASE: &str = "https://api.openai.com/v1";
+pub const API_BASE: &str = "https://api.openai.com/v1/";
 /// Name for organization header
 pub const ORGANIZATION_HEADER: &str = "OpenAI-Organization";
 
@@ -82,8 +82,12 @@ impl Client {
         self
     }
 
-    pub fn api_base(&self) -> &str {
-        &self.api_base
+    // pub fn api_base(&self) -> &str {
+    //     &self.api_base
+    // }
+
+    fn api_base_url(&self) -> reqwest::Url {
+        reqwest::Url::parse(&self.api_base).expect("Invalid API base URL")
     }
 
     pub fn api_key(&self) -> &str {
@@ -150,18 +154,23 @@ impl Client {
         headers
     }
 
+    fn build_request(&self, method: reqwest::Method, path: &str) -> reqwest::RequestBuilder {
+        let url = self.api_base_url().join(path).expect("Invalid API path");
+        println!("{:?}", url.as_str());
+        self.http_client
+            .request(method, url)
+            .bearer_auth(self.api_key())
+            .headers(self.headers())
+    }
+
     /// Make a GET request to {path} and deserialize the response body
     pub(crate) async fn get<O>(&self, path: &str) -> Result<O, OpenAIError>
     where
         O: DeserializeOwned,
     {
         let request = self
-            .http_client
-            .get(format!("{}{path}", self.api_base()))
-            .bearer_auth(self.api_key())
-            .headers(self.headers())
+            .build_request(reqwest::Method::GET, path)
             .build()?;
-
         self.execute(request).await
     }
 
@@ -171,12 +180,8 @@ impl Client {
         O: DeserializeOwned,
     {
         let request = self
-            .http_client
-            .delete(format!("{}{path}", self.api_base()))
-            .bearer_auth(self.api_key())
-            .headers(self.headers())
+            .build_request(reqwest::Method::DELETE, path)
             .build()?;
-
         self.execute(request).await
     }
 
@@ -187,10 +192,7 @@ impl Client {
         O: DeserializeOwned,
     {
         let request = self
-            .http_client
-            .post(format!("{}{path}", self.api_base()))
-            .bearer_auth(self.api_key())
-            .headers(self.headers())
+            .build_request(reqwest::Method::POST, path)
             .json(&request)
             .build()?;
 
@@ -207,10 +209,7 @@ impl Client {
         O: DeserializeOwned,
     {
         let request = self
-            .http_client
-            .post(format!("{}{path}", self.api_base()))
-            .bearer_auth(self.api_key())
-            .headers(self.headers())
+            .build_request(reqwest::Method::POST, path)
             .multipart(form)
             .build()?;
 
@@ -310,10 +309,7 @@ impl Client {
         O: DeserializeOwned + std::marker::Send + 'static,
     {
         let event_source = self
-            .http_client
-            .post(format!("{}{path}", self.api_base()))
-            .headers(self.headers())
-            .bearer_auth(self.api_key())
+            .build_request(reqwest::Method::POST, path)
             .json(&request)
             .eventsource()
             .unwrap();
@@ -332,11 +328,8 @@ impl Client {
         O: DeserializeOwned + std::marker::Send + 'static,
     {
         let event_source = self
-            .http_client
-            .get(format!("{}{path}", self.api_base()))
+            .build_request(reqwest::Method::GET, path)
             .query(query)
-            .headers(self.headers())
-            .bearer_auth(self.api_key())
             .eventsource()
             .unwrap();
 

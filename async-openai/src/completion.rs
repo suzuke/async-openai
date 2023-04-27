@@ -26,7 +26,7 @@ impl<'c> Completions<'c> {
                 "When stream is true, use Completion::create_stream".into(),
             ));
         }
-        self.client.post("/completions", request).await
+        self.client.post("/v1/completions", request).await
     }
 
     /// Creates a completion request for the provided prompt and parameters
@@ -48,6 +48,6 @@ impl<'c> Completions<'c> {
 
         request.stream = Some(true);
 
-        Ok(self.client.post_stream("/completions", request).await)
+        Ok(self.client.post_stream("/v1/completions", request).await)
     }
 }

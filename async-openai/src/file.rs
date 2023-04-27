@@ -21,30 +21,30 @@ impl<'c> Files<'c> {
         let form = reqwest::multipart::Form::new()
             .part("file", file_part)
             .text("purpose", request.purpose);
-        self.client.post_form("/files", form).await
+        self.client.post_form("/v1/files", form).await
     }
 
     /// Returns a list of files that belong to the user's organization.
     pub async fn list(&self) -> Result<ListFilesResponse, OpenAIError> {
-        self.client.get("/files").await
+        self.client.get("/v1/files").await
     }
 
     /// Returns information about a specific file.
     pub async fn retrieve(&self, file_id: &str) -> Result<OpenAIFile, OpenAIError> {
-        self.client.get(format!("/files/{file_id}").as_str()).await
+        self.client.get(format!("/v1/files/{file_id}").as_str()).await
     }
 
     /// Delete a file.
     pub async fn delete(&self, file_id: &str) -> Result<DeleteFileResponse, OpenAIError> {
         self.client
-            .delete(format!("/files/{file_id}").as_str())
+            .delete(format!("/v1/files/{file_id}").as_str())
             .await
     }
 
     /// Returns the contents of the specified file
     pub async fn retrieve_content(&self, file_id: &str) -> Result<String, OpenAIError> {
         self.client
-            .get(format!("/files/{file_id}/content").as_str())
+            .get(format!("/v1/files/{file_id}/content").as_str())
             .await
     }
 }

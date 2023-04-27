@@ -25,12 +25,12 @@ impl<'c> FineTunes<'c> {
     ///
     /// [Learn more about Fine-tuning](https://platform.openai.com/docs/guides/fine-tuning)
     pub async fn create(&self, request: CreateFineTuneRequest) -> Result<FineTune, OpenAIError> {
-        self.client.post("/fine-tunes", request).await
+        self.client.post("/v1/fine-tunes", request).await
     }
 
     /// List your organization's fine-tuning jobs
     pub async fn list(&self) -> Result<ListFineTuneResponse, OpenAIError> {
-        self.client.get("/fine-tunes").await
+        self.client.get("/v1/fine-tunes").await
     }
 
     /// Gets info about the fine-tune job.

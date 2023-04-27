@@ -21,6 +21,6 @@ impl<'c> Moderations<'c> {
         &self,
         request: CreateModerationRequest,
     ) -> Result<CreateModerationResponse, OpenAIError> {
-        self.client.post("/moderations", request).await
+        self.client.post("/v1/moderations", request).await
     }
 }

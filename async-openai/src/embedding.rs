@@ -22,7 +22,7 @@ impl<'c> Embeddings<'c> {
         &self,
         request: CreateEmbeddingRequest,
     ) -> Result<CreateEmbeddingResponse, OpenAIError> {
-        self.client.post("/embeddings", request).await
+        self.client.post("/v1/embeddings", request).await
     }
 }
 

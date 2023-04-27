@@ -26,7 +26,7 @@ impl<'c> Chat<'c> {
                 "When stream is true, use Chat::create_stream".into(),
             ));
         }
-        self.client.post("/chat/completions", request).await
+        self.client.post("/v1/chat/completions", request).await
     }
 
     /// Creates a completion for the chat message
@@ -46,6 +46,6 @@ impl<'c> Chat<'c> {
 
         request.stream = Some(true);
 
-        Ok(self.client.post_stream("/chat/completions", request).await)
+        Ok(self.client.post_stream("/v1/chat/completions", request).await)
     }
 }

@@ -20,6 +20,6 @@ impl<'c> Edits<'c> {
         &self,
         request: CreateEditRequest,
     ) -> Result<CreateEditResponse, OpenAIError> {
-        self.client.post("/edits", request).await
+        self.client.post("/v1/edits", request).await
     }
 }

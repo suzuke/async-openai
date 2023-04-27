@@ -19,13 +19,13 @@ impl<'c> Models<'c> {
     /// Lists the currently available models, and provides basic information
     /// about each one such as the owner and availability.
     pub async fn list(&self) -> Result<ListModelResponse, OpenAIError> {
-        self.client.get("/models").await
+        self.client.get("/v1/models").await
     }
 
     /// Retrieves a model instance, providing basic information about the model
     /// such as the owner and permissioning.
     pub async fn retrieve(&self, id: &str) -> Result<Model, OpenAIError> {
-        self.client.get(format!("/models/{id}").as_str()).await
+        self.client.get(format!("/v1/models/{id}").as_str()).await
     }
 
     /// Delete a fine-tuned model. You must have the Owner role in your organization.

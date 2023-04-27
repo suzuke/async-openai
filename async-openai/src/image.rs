@@ -21,7 +21,7 @@ impl<'c> Images<'c> {
 
     /// Creates an image given a prompt.
     pub async fn create(&self, request: CreateImageRequest) -> Result<ImageResponse, OpenAIError> {
-        self.client.post("/images/generations", request).await
+        self.client.post("/v1/images/generations", request).await
     }
 
     /// Creates an edited or extended image given an original image and a prompt.
@@ -59,7 +59,7 @@ impl<'c> Images<'c> {
             form = form.text("user", request.user.unwrap())
         }
 
-        self.client.post_form("/images/edits", form).await
+        self.client.post_form("/v1/images/edits", form).await
     }
 
     /// Creates a variation of a given image.
@@ -90,6 +90,6 @@ impl<'c> Images<'c> {
             form = form.text("user", request.user.unwrap())
         }
 
-        self.client.post_form("/images/variations", form).await
+        self.client.post_form("/v1/images/variations", form).await
     }
 }
