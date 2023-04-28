@@ -46,6 +46,9 @@ impl<'c> Chat<'c> {
 
         request.stream = Some(true);
 
-        Ok(self.client.post_stream("/v1/chat/completions", request).await)
+        Ok(self
+            .client
+            .post_stream("/v1/chat/completions", request)
+            .await)
     }
 }

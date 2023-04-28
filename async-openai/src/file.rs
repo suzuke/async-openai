@@ -31,7 +31,9 @@ impl<'c> Files<'c> {
 
     /// Returns information about a specific file.
     pub async fn retrieve(&self, file_id: &str) -> Result<OpenAIFile, OpenAIError> {
-        self.client.get(format!("/v1/files/{file_id}").as_str()).await
+        self.client
+            .get(format!("/v1/files/{file_id}").as_str())
+            .await
     }
 
     /// Delete a file.

@@ -42,7 +42,9 @@ impl<'c> Audio<'c> {
             form = form.text("temperature", temperature.to_string())
         }
 
-        self.client.post_form("/v1/audio/transcriptions", form).await
+        self.client
+            .post_form("/v1/audio/transcriptions", form)
+            .await
     }
 
     /// Translates audio into into English.

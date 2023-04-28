@@ -1,4 +1,5 @@
 use std::pin::Pin;
+use std::sync::Arc;
 
 use futures::{stream::StreamExt, Stream};
 use reqwest::header::HeaderMap;
@@ -18,11 +19,11 @@ use crate::{
 /// Client is a container for api key, base url, organization id, and backoff
 /// configuration used to make API calls.
 pub struct Client {
-    http_client: reqwest::Client,
+    http_client: Arc<reqwest::Client>,
     api_key: String,
     api_base: String,
-    org_id: Option<String>,
     backoff: backoff::ExponentialBackoff,
+    headers: HeaderMap,
 }
 
 /// Default v1 API base url
@@ -33,12 +34,17 @@ pub const ORGANIZATION_HEADER: &str = "OpenAI-Organization";
 impl Default for Client {
     /// Create client with default [API_BASE] url and default API key from OPENAI_API_KEY env var
     fn default() -> Self {
+        let mut headers = HeaderMap::new();
+        let org_id = std::env::var("OPENAI_ORG_ID").ok();
+        if let Some(org_id) = &org_id {
+            headers.insert(ORGANIZATION_HEADER, org_id.as_str().parse().unwrap());
+        }
         Self {
-            http_client: reqwest::Client::new(),
+            http_client: Arc::new(reqwest::Client::new()),
             api_base: API_BASE.to_string(),
             api_key: std::env::var("OPENAI_API_KEY").unwrap_or_else(|_| "".to_string()),
-            org_id: Default::default(),
             backoff: Default::default(),
+            headers: headers,
         }
     }
 }
@@ -53,7 +59,7 @@ impl Client {
     ///
     /// [client]: reqwest::Client
     pub fn with_http_client(mut self, http_client: reqwest::Client) -> Self {
-        self.http_client = http_client;
+        self.http_client = Arc::new(http_client);
         self
     }
 
@@ -65,7 +71,9 @@ impl Client {
 
     /// To use a different organization id other than default
     pub fn with_org_id<S: Into<String>>(mut self, org_id: S) -> Self {
-        self.org_id = Some(org_id.into());
+        let org_id: String = org_id.into();
+        self.headers
+            .insert(ORGANIZATION_HEADER, org_id.parse().unwrap());
         self
     }
 
@@ -146,27 +154,13 @@ impl Client {
         Audio::new(self)
     }
 
-    fn headers(&self) -> HeaderMap {
-        let mut headers = HeaderMap::new();
-        headers.insert(
-            ORGANIZATION_HEADER,
-            match &self.org_id {
-                Some(org_id) => org_id.as_str().parse().unwrap(),
-                None => {
-                    "".parse().unwrap()
-                }
-            },
-        );
-        headers
-    }
-
     fn build_request(&self, method: reqwest::Method, path: &str) -> reqwest::RequestBuilder {
         let url = self.api_base_url().join(path).expect("Invalid API path");
         println!("{:?}", url.as_str());
         self.http_client
             .request(method, url)
             .bearer_auth(self.api_key())
-            .headers(self.headers())
+            .headers(self.headers.clone())
     }
 
     /// Make a GET request to {path} and deserialize the response body
@@ -174,9 +168,7 @@ impl Client {
     where
         O: DeserializeOwned,
     {
-        let request = self
-            .build_request(reqwest::Method::GET, path)
-            .build()?;
+        let request = self.build_request(reqwest::Method::GET, path).build()?;
         self.execute(request).await
     }
 
@@ -185,9 +177,7 @@ impl Client {
     where
         O: DeserializeOwned,
     {
-        let request = self
-            .build_request(reqwest::Method::DELETE, path)
-            .build()?;
+        let request = self.build_request(reqwest::Method::DELETE, path).build()?;
         self.execute(request).await
     }
 
@@ -247,60 +237,33 @@ impl Client {
     where
         O: DeserializeOwned,
     {
-        let client = self.http_client.clone();
-
-        match request.try_clone() {
+        // Check if the request is cloneable
+        if let Some(cloned_request) = request.try_clone() {
             // Only clone-able requests can be retried
-            Some(request) => {
-                backoff::future::retry(self.backoff.clone(), || async {
+            backoff::future::retry(self.backoff.clone(), || {
+                let request = cloned_request.try_clone().unwrap();
+                let client = self.http_client.clone();
+                async move {
                     let response = client
-                        .execute(request.try_clone().unwrap())
+                        .execute(request)
                         .await
-                        .map_err(OpenAIError::Reqwest)
-                        .map_err(backoff::Error::Permanent)?;
+                        .map_err(OpenAIError::Reqwest)?;
 
-                    let status = response.status();
-                    let bytes = response
-                        .bytes()
-                        .await
-                        .map_err(OpenAIError::Reqwest)
-                        .map_err(backoff::Error::Permanent)?;
-
-                    // Deserialize response body from either error object or actual response object
-                    if !status.is_success() {
-                        let wrapped_error: WrappedError = serde_json::from_slice(bytes.as_ref())
-                            .map_err(|e| map_deserialization_error(e, bytes.as_ref()))
-                            .map_err(backoff::Error::Permanent)?;
-
-                        if status.as_u16() == 429
-                            // API returns 429 also when:
-                            // "You exceeded your current quota, please check your plan and billing details."
-                            && wrapped_error.error.r#type != "insufficient_quota"
-                        {
-                            // Rate limited retry...
-                            tracing::warn!("Rate limited: {}", wrapped_error.error.message);
-                            return Err(backoff::Error::Transient {
-                                err: OpenAIError::ApiError(wrapped_error.error),
-                                retry_after: None,
-                            });
-                        } else {
-                            return Err(backoff::Error::Permanent(OpenAIError::ApiError(
-                                wrapped_error.error,
-                            )));
-                        }
+                    match self.process_response(response).await {
+                        Ok(response) => Ok(response),
+                        Err(OpenAIError::RateLimited(error)) => Err(backoff::Error::Transient {
+                            err: OpenAIError::ApiError(error),
+                            retry_after: None,
+                        }),
+                        Err(e) => Err(backoff::Error::Permanent(e)),
                     }
-
-                    let response: O = serde_json::from_slice(bytes.as_ref())
-                        .map_err(|e| map_deserialization_error(e, bytes.as_ref()))
-                        .map_err(backoff::Error::Permanent)?;
-                    Ok(response)
-                })
-                .await
-            }
-            None => {
-                let response = client.execute(request).await?;
-                self.process_response(response).await
-            }
+                }
+            })
+            .await
+        } else {
+            // For non-cloneable requests, execute without retry logic
+            let response = self.http_client.execute(request).await?;
+            self.process_response(response).await
         }
     }
 
